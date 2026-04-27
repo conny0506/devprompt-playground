@@ -1,0 +1,32 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+.markdown {
+  @apply text-sm leading-relaxed text-slate-200;
+}
+.markdown p { @apply my-2; }
+.markdown h1, .markdown h2, .markdown h3 { @apply font-semibold mt-3 mb-1 text-slate-100; }
+.markdown ul { @apply list-disc pl-5 my-2; }
+.markdown ol { @apply list-decimal pl-5 my-2; }
+.markdown code {
+  @apply font-mono text-[0.85em] bg-bg/60 px-1 py-0.5 rounded text-accent;
+}
+.markdown pre {
+  @apply font-mono text-xs bg-black/40 border border-white/5 rounded-md p-3 my-2 overflow-x-auto;
+}
+.markdown pre code {
+  @apply bg-transparent text-slate-100 p-0;
+}
+
+.scrollbar-thin::-webkit-scrollbar { width: 8px; height: 8px; }
+.scrollbar-thin::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 4px; }
