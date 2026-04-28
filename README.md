@@ -2,7 +2,7 @@
 
 > An interactive web tool that fans a single coding problem out across **three prompt strategies** (zero-shot, few-shot, chain-of-thought) and **two LLM providers** (OpenAI, Anthropic), then compares the results side-by-side — showing token cost, latency, and an LLM-judged quality score for each response.
 
-![screenshot placeholder](docs/screenshot.png)
+![screenshot](docs/screenshot.JPEG)
 
 > **Built with AI coding tools.** ~80% of this project was scaffolded and iterated using Cursor / Claude Code. Prompt templates, the scoring rubric, and architectural decisions were authored and reviewed by hand. See [Prompt engineering notes](#prompt-engineering-notes) below.
 
