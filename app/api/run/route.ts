@@ -1,108 +1,93 @@
 import { NextResponse } from "next/server";
 import type { RunRequest, RunResponse, RunResult } from "@/lib/types";
-import { PROVIDER_MODELS, calcCost } from "@/lib/pricing";
 import { PROMPT_TEMPLATES } from "@/lib/prompts";
+import { PROVIDER_MODELS, calcCost } from "@/lib/pricing";
+import { runOpenAI } from "@/lib/providers/openai";
+import { runAnthropic } from "@/lib/providers/anthropic";
 
 export const runtime = "nodejs";
 
-// Day 1: mock implementation. Day 2 swaps this for real OpenAI/Anthropic calls.
-export async function POST(req: Request): Promise<NextResponse<RunResponse>> {
+export async function POST(req: Request): Promise<NextResponse> {
   const body = (await req.json()) as RunRequest;
-  const { problem, strategies, providers } = body;
+  const { problem, strategies, providers, keys } = body;
+
+  if (!problem?.trim()) {
+    return NextResponse.json({ error: "problem is required" }, { status: 400 });
+  }
 
   const tasks: Promise<RunResult>[] = [];
+
   for (const strategy of strategies) {
     for (const provider of providers) {
-      tasks.push(mockCall(problem, strategy, provider));
+      const key = provider === "openai" ? keys?.openai : keys?.anthropic;
+      if (key) {
+        tasks.push(callProvider(problem, strategy, provider, key));
+      } else {
+        tasks.push(Promise.resolve(missingKeyResult(strategy, provider)));
+      }
     }
   }
-  const results = await Promise.all(tasks);
-  return NextResponse.json({ results });
+
+  const settled = await Promise.allSettled(tasks);
+  const results: RunResult[] = settled.map((s, i) => {
+    if (s.status === "fulfilled") return s.value;
+    const strategy = strategies[Math.floor(i / providers.length)];
+    const provider = providers[i % providers.length];
+    return errorResult(strategy, provider, s.reason);
+  });
+
+  return NextResponse.json({ results } satisfies RunResponse);
 }
 
-async function mockCall(
+async function callProvider(
   problem: string,
   strategy: RunRequest["strategies"][number],
   provider: RunRequest["providers"][number],
+  apiKey: string,
 ): Promise<RunResult> {
-  const start = Date.now();
-  await sleep(400 + Math.random() * 1200);
-  const latencyMs = Date.now() - start;
+  if (provider === "openai") return runOpenAI(problem, strategy, apiKey);
+  return runAnthropic(problem, strategy, apiKey);
+}
 
-  const built = PROMPT_TEMPLATES[strategy].build(problem);
-  const promptTokens = Math.round((built.system.length + built.user.length) / 4);
-  const completionTokens = 80 + Math.floor(Math.random() * 220);
+function missingKeyResult(
+  strategy: RunRequest["strategies"][number],
+  provider: RunRequest["providers"][number],
+): RunResult {
   const model = PROVIDER_MODELS[provider];
-
-  const response = buildMockResponse(problem, strategy, provider);
-
+  const built = PROMPT_TEMPLATES[strategy].build("(no problem)");
+  const promptTokens = Math.round((built.system.length + built.user.length) / 4);
   return {
     id: `${strategy}__${provider}`,
     strategy,
     provider,
     model,
-    response,
+    response: "",
     promptTokens,
-    completionTokens,
-    costUsd: calcCost(model, promptTokens, completionTokens),
-    latencyMs,
+    completionTokens: 0,
+    costUsd: calcCost(model, promptTokens, 0),
+    latencyMs: 0,
+    error: `No ${provider === "openai" ? "OpenAI" : "Anthropic"} API key. Add it in Settings.`,
   };
 }
 
-function buildMockResponse(
-  problem: string,
-  strategy: string,
-  provider: string,
-): string {
-  const trimmed = problem.length > 60 ? problem.slice(0, 60) + "…" : problem;
-  switch (strategy) {
-    case "zero-shot":
-      return `> _Mock ${provider} response for zero-shot._
-
-\`\`\`python
-def solution():
-    # Direct attempt at: ${trimmed}
-    pass
-\`\`\`
-
-Single-shot solution with no scaffolding.`;
-    case "few-shot":
-      return `> _Mock ${provider} response for few-shot._
-
-\`\`\`python
-def solution(n: int) -> int:
-    # Style anchored by examples
-    return n
-\`\`\`
-
-Solution mirrors the example format (typed signature, brief explanation).`;
-    case "chain-of-thought":
-      return `> _Mock ${provider} response for chain-of-thought._
-
-**1. Restate.** ${trimmed}
-
-**2. Edge cases.** empty input, negative n, very large n.
-
-**3. Approach.** memoize results in a dict keyed by input.
-
-**4. Implementation.**
-
-\`\`\`python
-from functools import lru_cache
-
-@lru_cache(maxsize=None)
-def fib(n: int) -> int:
-    if n < 2:
-        return n
-    return fib(n - 1) + fib(n - 2)
-\`\`\`
-
-**5. Verify.** \`fib(0)=0\`, \`fib(1)=1\`, \`fib(10)=55\`. ✓`;
-    default:
-      return "Mock response.";
-  }
-}
-
-function sleep(ms: number) {
-  return new Promise((r) => setTimeout(r, ms));
+function errorResult(
+  strategy: RunRequest["strategies"][number],
+  provider: RunRequest["providers"][number],
+  reason: unknown,
+): RunResult {
+  const model = PROVIDER_MODELS[provider];
+  const message =
+    reason instanceof Error ? reason.message : "Unexpected error";
+  return {
+    id: `${strategy}__${provider}`,
+    strategy,
+    provider,
+    model,
+    response: "",
+    promptTokens: 0,
+    completionTokens: 0,
+    costUsd: 0,
+    latencyMs: 0,
+    error: message,
+  };
 }
