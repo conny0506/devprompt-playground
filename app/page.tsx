@@ -136,7 +136,7 @@ export default function Page() {
           </div>
           <div className="flex items-center gap-2">
             <a
-              href="https://github.com/conny0506/devprompt-playground"
+              href="https://github.com/mustaffadnC/devprompt-playground"
               target="_blank"
               rel="noreferrer"
               className="p-2 rounded hover:bg-white/5 text-slate-400 hover:text-slate-200"
